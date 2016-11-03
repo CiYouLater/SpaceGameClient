@@ -1,0 +1,331 @@
+<!doctype html>
+<meta charset="utf-8">
+<META HTTP-EQUIV="Pragma" CONTENT="no-cache">
+<title>DruIngen</title>
+<body bgcolor="black">
+<script src="../howler/dist/howler.core.js"></script>
+<script src="../pixi.js/bin/pixi.js"></script>
+<script>
+document.documentElement.style.overflow = 'hidden';  // firefox, chrome
+document.body.scroll = "no"; // ie
+
+var Container = PIXI.Container,
+    autoDetectRenderer = PIXI.autoDetectRenderer,
+    loader = PIXI.loader,
+    resources = PIXI.loader.resources,
+    TextureCache = PIXI.utils.TextureCache,
+    Texture = PIXI.Texture,
+    Sprite = PIXI.Sprite,
+    Text = PIXI.Text,
+    Graphics = PIXI.Graphics;
+
+var stage = new Container(),
+    renderer = new PIXI.CanvasRenderer(window.innerWidth-15, window.innerHeight-15, document.getElementById("maincanvas"));
+    console.log((window.innerWidth-15)*2);
+  //  renderer.view.style.width = (window.innerWidth-15)/8;//'800px';
+  //  renderer.view.style.height = (window.innerHeight-15)/8;
+
+    //renderer.autoResize = true;
+    //renderer.resize(window.innerWidth-15 , window.innerHeight-15);
+document.body.appendChild(renderer.view);
+
+loader
+  .add("images/treasureHunter.json")
+  .load(setup);
+
+var state, explorer, treasure, blobs, chimes, exit, player, dungeon,
+    door, healthBar, message, gameScene, gameOverScene, enemies, id, waters;
+
+function setup() {
+
+
+  gameScene = new Container();
+  gameScene.width = window.innerWidth-15;
+  gameScene.height = window.innerHeight-15;
+  stage.addChild(gameScene);
+
+
+  id = resources["images/treasureHunter.json"].textures;
+
+
+  //dungeon = new Sprite(id["dungeon.png"]);
+  //gameScene.addChild(dungeon);
+
+
+  waters = [];
+
+  for (var iw = 0; iw < window.innerWidth-15; iw=iw+840) {
+    for(var ih = 0; ih < window.innerHeight-15; ih=ih+640) {
+
+    var water = new Sprite(id["waterbg.png"]);
+    var waterx = iw;
+    console.log(gameScene.width+"/"+iw);
+    var watery = ih;
+    water.x = waterx;
+    water.y = watery;
+    waters.push(water);
+    gameScene.addChild(water);
+    }
+  }
+  for (var is = 0; is < randomInt(80,100); is++) {
+    star = new Sprite(id["star.png"]);
+    star.x = randomInt(0,(window.innerWidth-15));
+    star.y = randomInt(0,(window.innerHeight-15));
+    var scal = randomInt(1,5)/10;
+    star.scale.x=scal;
+    star.scale.y=scal;
+    gameScene.addChild(star);
+  }
+
+
+  //var waterg = new Sprite(id["waterbg.png"]);
+  //var waterxg = (gameScene.width / 840) * iw;
+  //waterg.x = 840;
+  //gameScene.addChild(waterg);
+
+
+
+  explorer = new Sprite(id["explorer.png"]);
+  explorer.x = 68;
+  explorer.y = gameScene.height / 2 - explorer.height / 2;
+  explorer.vx = 0;
+  explorer.vy = 0;
+  explorer.pivot.x = explorer.width/2;
+  explorer.pivot.y = explorer.height/2;
+
+  gameScene.addChild(explorer);
+
+
+
+
+  var left = keyboard(65),
+      up = keyboard(87),
+      right = keyboard(68),
+      down = keyboard(83);
+    var leftv=0, upv=0, rightv=0,downv=0;
+    /**
+    //LEFT---------------------------------------
+  left.press = function() {
+
+    explorer.rotation = 1.5*Math.PI;
+    if(explorer.vy!=0){
+      leftv = -2.5
+    }else{
+      leftv = -5;
+    }
+    explorer.vx = leftv+rightv;
+  };
+  left.release = function() {
+      leftv = 0;
+      explorer.vx = leftv+rightv;
+  };
+//Right---------------------------------------
+  right.press = function() {
+
+    explorer.rotation = .5*Math.PI;
+    if(explorer.vy!=0){
+      rightv = 2.5
+    }else{
+      rightv = 5;
+    }
+    explorer.vx = leftv+rightv;
+  };
+  right.release = function() {
+      rightv =0;
+      explorer.vx = leftv+rightv;
+  };**/
+  //Up---------------------------------------
+    up.press = function() {
+      var val = 5;
+      var angl = (explorer.rotation*(180/Math.PI));
+      if(angl<0){
+        angl = 360-Math.abs(angl);
+      }
+      var a = val * Math.sin(angl);
+      var b = val * Math.cos(angl);
+console.log("Angle: "+angl);
+
+    if(270 > angl && angl > 90){
+        b=-b;
+      }
+     if(360>angl&&angl> 180){
+        a=-a;
+      }
+
+      //explorer.rotation = 0*Math.PI;
+      console.log(a+"   "+b);
+      explorer.x = explorer.x+a; //Supposed to be velocity - explorer.xv and yv but to test currently
+      explorer.y = explorer.y+b;
+    };
+    up.release = function() {
+
+    };
+//DOWN---------------------------------------
+  down.press = function() {
+
+
+  };
+  down.release = function() {
+    downv = 0;
+    explorer.vy = upv+downv;
+  };
+
+
+  state = play;
+  gameLoop();
+}
+
+function gameLoop(){
+  requestAnimationFrame(gameLoop);
+  state();
+  renderer.render(stage);
+}
+
+function play() {
+  var mousePosition = renderer.plugins.interaction.mouse.global;
+  var prerot = Math.atan2(mousePosition.x-explorer.x, - (mousePosition.y-explorer.y));
+  explorer.rotation = prerot;
+  explorer.x += explorer.vx;
+  explorer.y += explorer.vy;
+  //explorer.x = mousePosition.x;
+
+
+  contain(explorer, {x: 28, y: 10, width: (gameScene.width), height: (gameScene.height)});
+}
+
+function end() {
+  gameScene.visible = false;
+  gameOverScene.visible = true;
+}
+
+
+function contain(sprite, container) {
+
+  var collision = undefined;
+
+  //Left
+  if (sprite.x < container.x) {
+    sprite.x = container.x;
+    collision = "left";
+  }
+
+  //Top
+  if (sprite.y < container.y) {
+    sprite.y = container.y;
+    collision = "top";
+  }
+
+  //Right
+  if (sprite.x + sprite.width > container.width) {
+    sprite.x = container.width - sprite.width;
+    collision = "right";
+  }
+
+  //Bottom
+  if (sprite.y + sprite.height > container.height) {
+    sprite.y = container.height - sprite.height;
+    collision = "bottom";
+  }
+
+  //Return the `collision` value
+  return collision;
+}
+
+//The `hitTestRectangle` function
+function hitTestRectangle(r1, r2) {
+
+  //Define the variables we'll need to calculate
+  var hit, combinedHalfWidths, combinedHalfHeights, vx, vy;
+
+  //hit will determine whether there's a collision
+  hit = false;
+
+  //Find the center points of each sprite
+  r1.centerX = r1.x + r1.width / 2;
+  r1.centerY = r1.y + r1.height / 2;
+  r2.centerX = r2.x + r2.width / 2;
+  r2.centerY = r2.y + r2.height / 2;
+
+  //Find the half-widths and half-heights of each sprite
+  r1.halfWidth = r1.width / 2;
+  r1.halfHeight = r1.height / 2;
+  r2.halfWidth = r2.width / 2;
+  r2.halfHeight = r2.height / 2;
+
+  //Calculate the distance vector between the sprites
+  vx = r1.centerX - r2.centerX;
+  vy = r1.centerY - r2.centerY;
+
+  //Figure out the combined half-widths and half-heights
+  combinedHalfWidths = r1.halfWidth + r2.halfWidth;
+  combinedHalfHeights = r1.halfHeight + r2.halfHeight;
+
+  //Check for a collision on the x axis
+  if (Math.abs(vx) < combinedHalfWidths) {
+
+    //A collision might be occuring. Check for a collision on the y axis
+    if (Math.abs(vy) < combinedHalfHeights) {
+
+      //There's definitely a collision happening
+      hit = true;
+    } else {
+
+      //There's no collision on the y axis
+      hit = false;
+    }
+  } else {
+
+    //There's no collision on the x axis
+    hit = false;
+  }
+
+  //`hit` will be either `true` or `false`
+  return hit;
+};
+
+
+//The `randomInt` helper function
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+//The `keyboard` helper function
+function keyboard(keyCode) {
+  var key = {};
+  key.code = keyCode;
+  key.isDown = false;
+  key.isUp = true;
+  key.press = undefined;
+  key.release = undefined;
+  //The `downHandler`
+  key.downHandler = function(event) {
+    if (event.keyCode === key.code) {
+      if (key.isUp && key.press) key.press();
+      key.isDown = true;
+      key.isUp = false;
+    }
+    event.preventDefault();
+  };
+
+  //The `upHandler`
+  key.upHandler = function(event) {
+    if (event.keyCode === key.code) {
+      if (key.isDown && key.release) key.release();
+      key.isDown = false;
+      key.isUp = true;
+    }
+    event.preventDefault();
+  };
+
+  //Attach event listeners
+  window.addEventListener(
+    "keydown", key.downHandler.bind(key), false
+  );
+  window.addEventListener(
+    "keyup", key.upHandler.bind(key), false
+  );
+  return key;
+}
+
+</script>
+</body>
